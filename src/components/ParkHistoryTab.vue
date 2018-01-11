@@ -1,6 +1,6 @@
 <template>
     <div class="history">
-        <mu-paper class="park-item" v-for="item in parkList">
+        <mu-paper class="park-item" v-for="item in parkList" :key="item.startTime">
             <mu-timeline>
                 <mu-timeline-item>
                     <span slot="time">{{new Date(item.startTime).toLocaleTimeString()}}</span>
