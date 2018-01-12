@@ -8,10 +8,10 @@
 
         <div>
             <mu-menu-item title="停车位数量">
-                <mu-badge content="120" color="green" slot="after"/>
+                <mu-badge :content="allParkNum" color="green" slot="after"/>
             </mu-menu-item>
             <mu-menu-item title="剩余停车位">
-                <mu-badge content="12" color="green" slot="after"/>
+                <mu-badge :content="nowParkNum" color="green" slot="after"/>
             </mu-menu-item>
             <mu-menu-item v-if="parkInfo.status" title="您的车停在">
                 <mu-badge :content="parkInfo.pos" color="blue" slot="after"/>
@@ -151,6 +151,31 @@
             parkCost() {
                 return Math.ceil((this.parkInfo.endTime - this.parkInfo.startTime) / 1000 / 3600) * 5
             },
+            allParkNum() {
+                let t = 0;
+
+                for (let i = 0; i < this.map.length; i++) {
+                    for (let j = 0; j < this.map[i].length; j++) {
+                        if(this.map[i][j]===1||this.map[i][j]===2){
+                            t+=1;
+                        }
+                    }
+                }
+                return t;
+            },
+            nowParkNum(){
+
+                let t = 0;
+
+                for (let i = 0; i < this.map.length; i++) {
+                    for (let j = 0; j < this.map[i].length; j++) {
+                        if(this.map[i][j]===1){
+                            t+=1;
+                        }
+                    }
+                }
+                return t;
+            }
         },
         methods: {
             save() {
@@ -284,17 +309,17 @@
                 let cellHeight = this.w / (this.map.length + 1);
                 for (let i = 0; i < this.map.length; i++) {
                     for (let j = 0; j < this.map[i].length; j++) {
-                            let t = this.map[i][j]
-                            if (this.parkInfo.status && i * this.map[0].length + j === this.parkInfo.pos) {
-                                t = 6
-                            }
-                            if (i * this.map[0].length + j === this.me) {
-                                t = 7
-                            }
-                            if(t==0)continue;
-                            let img = document.getElementById('img-' + t)
-                            ///console.log(img)
-                            this.context.drawImage(img, j * cellWidth, i * cellHeight, cellWidth, cellHeight);
+                        let t = this.map[i][j]
+                        if (this.parkInfo.status && i * this.map[0].length + j === this.parkInfo.pos) {
+                            t = 6
+                        }
+                        if (i * this.map[0].length + j === this.me) {
+                            t = 7
+                        }
+                        if (t == 0) continue;
+                        let img = document.getElementById('img-' + t)
+                        ///console.log(img)
+                        this.context.drawImage(img, j * cellWidth, i * cellHeight, cellWidth, cellHeight);
 
                     }
                 }
