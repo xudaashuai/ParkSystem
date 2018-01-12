@@ -2,7 +2,8 @@
     <mu-flexbox orient="vertical" align="stretch" class="park-tab">
 
         <mu-refresh-control :refreshing="refreshing" :trigger="trigger" @refresh="refresh"/>
-        <div class="canvas-box">
+        <div class="canvas-box" id="canvas-box">
+            <canvas id="canvas"></canvas>
         </div>
 
         <div>
@@ -24,6 +25,8 @@
             </div>
             <input id="car" type="file" @change="scanFile" value="扫描二维码" capture="camera" v-show="false">
         </div>
+
+        <img v-for="item,index in pics" :src="item" :id="'img-'+index" v-show="false">
         <mu-bottom-sheet :open="parkSheet" @close="closeParkSheet">
             <mu-sub-header>
                 确认您的停车信息
@@ -63,9 +66,14 @@
 <script>
     import {qrcode} from './../assets/js/qrcode.js'
     import Vue from 'vue'
+    import ParkTabCanvas from '@/components/ParkTabCanvas'
+    import EasyStar from 'easystarjs'
 
     export default {
         name: '',
+        components: {
+            ParkTabCanvas: ParkTabCanvas
+        },
         data() {
             return {
                 parkSheet: false,
@@ -83,8 +91,44 @@
                 message: '',
                 refreshing: false,
                 trigger: null,
-                parkInfo:{},
-                parkList:[]
+                parkInfo: {},
+                parkList: [],
+                canvas: null,
+                windowWidth: document.body.clientWidth,
+                canvasBox: null,
+                context: null,
+                w: 0,
+                h: 0,
+                // map 表示当前停车场地图
+                // 0 表示 路
+                // 1 表示 未被停车车位
+                // 2 表示 被停车车位
+                // 3 表示 墙哦
+                // 4 表示 出口哦
+                // 5 表示 电梯哦
+                map: [
+                    [3, 0, 1, 1, 2, 1, 1, 2, 2, 2, 0, 3],
+                    [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [1, 0, 2, 3, 1, 0, 1, 3, 0, 2, 2, 2],
+                    [1, 0, 2, 3, 2, 0, 1, 3, 0, 0, 0, 0],
+                    [1, 0, 2, 3, 1, 0, 2, 3, 0, 0, 0, 4],
+                    [2, 0, 2, 3, 2, 0, 1, 3, 0, 0, 0, 4],
+                    [2, 0, 1, 3, 1, 0, 1, 3, 0, 0, 0, 0],
+                    [1, 0, 2, 3, 2, 0, 2, 3, 0, 2, 2, 2],
+                    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [3, 0, 0, 0, 4, 4, 4, 0, 0, 0, 5, 5],
+                ],
+                pics: [
+                    0,
+                    require('./../assets/greencar.png'),
+                    require('./../assets/redcar.png'),
+                    require('./../assets/墙.png'),
+                    require('./../assets/exit.png'),
+                    require('./../assets/电梯.png'),
+                    require('./../assets/车辆.png'),
+                    require('./../assets/我.png')
+                ],
+                me: -1
             }
         },
         created() {
@@ -92,17 +136,26 @@
             this.parkList = JSON.parse(Vue.localStorage.get('parkList', '[]'))
         },
         mounted: function () {
-            this.cameraInput = document.getElementById('car')
-            this.trigger = this.$el
+            this.$nextTick(() => {
+
+                this.cameraInput = document.getElementById('car')
+                this.trigger = this.$el
+                this.canvas = document.getElementById('canvas')
+                this.context = this.canvas.getContext('2d')
+                this.canvasBox = document.getElementById('canvas-box')
+                this.resize()
+                document.body.onresize = this.resize
+            })
         },
         computed: {
             parkCost() {
-                return Math.ceil((this.parkInfo.endTime - this.parkInfo.startTime) / 1000 / 3600)*5
+                return Math.ceil((this.parkInfo.endTime - this.parkInfo.startTime) / 1000 / 3600) * 5
             },
         },
         methods: {
             save() {
                 Vue.localStorage.set('parkInfo', JSON.stringify(this.parkInfo))
+                this.draw()
             },
             park(pos) {
                 this.showToast('停车成功')
@@ -112,7 +165,7 @@
                 this.save()
             },
             pay() {
-                this.parkInfo.cost=this.parkCost
+                this.parkInfo.cost = this.parkCost
                 this.parkList.push(this.parkInfo)
                 Vue.localStorage.set('parkList', JSON.stringify(this.parkList))
                 this.parkInfo.status = false
@@ -127,9 +180,15 @@
                         if (isNaN(t)) {
                             this.showToast('二维码内容错误')
                         } else {
-                            this.parkInfo.pos = t
-                            console.log(t)
-                            this.openParkSheet()
+                            if (this.map[Math.floor(t / this.map[0].length)][t % this.map[0].length] === 1) {
+                                this.parkInfo.pos = t
+                                console.log(t)
+                                this.openParkSheet()
+                            } else if (this.map[Math.floor(t / this.map[0].length)][t % this.map[0].length] === 2) {
+                                this.showToast('车位有人啦')
+                            } else {
+                                this.showToast('二维码内容错误')
+                            }
                         }
                     }
                 }
@@ -143,7 +202,25 @@
                 this.cb = (t, ok) => {
                     console.log(t)
                     if (ok) {
-                        this.showToast('标识出了您当前位置')
+                        t = Number.parseInt(t)
+                        if (isNaN(t)) {
+                            this.showToast('二维码内容错误')
+                        } else {
+                            this.me = t
+                            this.showToast('标识出了您当前位置')
+                            let m = new EasyStar.js();
+                            m.setGrid(this.map);
+                            m.setAcceptableTiles([0, 1, 2, 4, 5]);
+                            m.findPath(
+                                Math.floor(this.me / this.map[0].length),
+                                Math.floor(this.me % this.map[0].length),
+                                Math.floor(this.parkInfo.pos / this.map[0].length),
+                                Math.floor(this.parkInfo.pos % this.map[0].length),
+                                function (path) {
+                                    console.log(path)
+                                });
+                            this.draw()
+                        }
                     }
                 }
                 this.openCamera()
@@ -196,14 +273,38 @@
             }, refresh() {
                 this.refreshing = true
                 setTimeout(() => {
-                    const list = []
-                    for (let i = this.num; i < this.num + 10; i++) {
-                        list.push('item' + (i + 1))
-                    }
-                    this.list = list
-                    this.num += 10
+                    this.me = -1;
+                    this.draw();
                     this.refreshing = false
-                }, 2000)
+                }, 1000)
+            },
+            draw() {
+                this.context.clearRect(0, 0, canvas.width, canvas.height);
+                let cellWidth = this.w / (this.map[0].length + 1);
+                let cellHeight = this.w / (this.map.length + 1);
+                for (let i = 0; i < this.map.length; i++) {
+                    for (let j = 0; j < this.map[i].length; j++) {
+                            let t = this.map[i][j]
+                            if (this.parkInfo.status && i * this.map[0].length + j === this.parkInfo.pos) {
+                                t = 6
+                            }
+                            if (i * this.map[0].length + j === this.me) {
+                                t = 7
+                            }
+                            if(t==0)continue;
+                            let img = document.getElementById('img-' + t)
+                            ///console.log(img)
+                            this.context.drawImage(img, j * cellWidth, i * cellHeight, cellWidth, cellHeight);
+
+                    }
+                }
+            },
+            resize() {
+                console.log(this.canvasBox.clientWidth)
+                console.log(this.canvasBox.clientHeight)
+                this.h = this.canvas.height = this.canvasBox.clientHeight - 5
+                this.w = this.canvas.width = this.canvasBox.clientWidth
+                this.draw()
             }
         }
     }
@@ -217,10 +318,10 @@
 
     .canvas-box {
         flex-grow: 2;
-        background-color: seagreen;
     }
 
     .button-box {
+        flex-grow: 1;
         margin: 5px 0;
     }
 

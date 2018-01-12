@@ -22,11 +22,15 @@
 
 <script>
     import Vue from 'vue'
-
+    import ParkTabCanvas from '@/components/ParkHistoryTab'
     export default {
         name: "park-history",
         created() {
-            this.parkList = JSON.parse(Vue.localStorage.get('parkList', '[]'))
+            this.parkList = JSON.parse(Vue.localStorage.get('parkList', '[]')).reverse()
+            var t = [1]
+        },
+        components:{
+
         },
         data() {
             return {
