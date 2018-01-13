@@ -67,7 +67,7 @@
     import {qrcode} from './../assets/js/qrcode.js'
     import Vue from 'vue'
     import ParkTabCanvas from '@/components/ParkTabCanvas'
-    import EasyStar from 'easystarjs'
+    import PF from 'pathfinding'
 
     export default {
         name: '',
@@ -156,21 +156,21 @@
 
                 for (let i = 0; i < this.map.length; i++) {
                     for (let j = 0; j < this.map[i].length; j++) {
-                        if(this.map[i][j]===1||this.map[i][j]===2){
-                            t+=1;
+                        if (this.map[i][j] === 1 || this.map[i][j] === 2) {
+                            t += 1;
                         }
                     }
                 }
                 return t;
             },
-            nowParkNum(){
+            nowParkNum() {
 
                 let t = 0;
 
                 for (let i = 0; i < this.map.length; i++) {
                     for (let j = 0; j < this.map[i].length; j++) {
-                        if(this.map[i][j]===1){
-                            t+=1;
+                        if (this.map[i][j] === 1) {
+                            t += 1;
                         }
                     }
                 }
@@ -233,18 +233,29 @@
                         } else {
                             this.me = t
                             this.showToast('标识出了您当前位置')
-                            let m = new EasyStar.js();
-                            m.setGrid(this.map);
-                            m.setAcceptableTiles([0, 1, 2, 4, 5]);
-                            m.findPath(
+
+                            let grid = new PF.Grid(this.map);
+                            let finder = new PF.AStarFinder();
+                            console.log(
                                 Math.floor(this.me / this.map[0].length),
                                 Math.floor(this.me % this.map[0].length),
                                 Math.floor(this.parkInfo.pos / this.map[0].length),
-                                Math.floor(this.parkInfo.pos % this.map[0].length),
-                                function (path) {
-                                    console.log(path)
-                                });
+                                Math.floor(this.parkInfo.pos % this.map[0].length))
+
+                            for (let i = 0; i < this.map.length; i++) {
+                                for (let j = 0; j < this.map[i].length; j++) {
+                                    grid.setWalkableAt(j, i, [0,1,2,4,5].includes(this.map[i][j]))
+                                }
+                            }
                             this.draw()
+                            this.path = finder.findPath(
+                                Math.floor(this.me % this.map[0].length),
+                                Math.floor(this.me / this.map[0].length),
+                                Math.floor(this.parkInfo.pos % this.map[0].length),
+                                Math.floor(this.parkInfo.pos / this.map[0].length),
+                                grid);
+                            this.drawPath(this.path)
+                            console.log(this.path)
                         }
                     }
                 }
@@ -255,15 +266,18 @@
                     qrcode.callback = this.cb
                     this.handleFiles(this.cameraInput.files)
                 }
-            },
+            }
+            ,
             closeParkSheet() {
                 this.parkSheet = false
-            },
+            }
+            ,
             openParkSheet() {
                 if (this.cameraInput.files.length === 1) {
                     this.parkSheet = true
                 }
-            },
+            }
+            ,
             handleFiles(f) {
                 var o = [];
                 const that = this
@@ -276,7 +290,8 @@
                     // Read in the image file as a data URL.
                     reader.readAsDataURL(f[i]);
                 }
-            },
+            }
+            ,
             showToast(text) {
                 this.toast = true
                 this.message = text
@@ -284,26 +299,34 @@
                 this.toastTimer = setTimeout(() => {
                     this.toast = false
                 }, 2000)
-            }, hideToast() {
+            }
+            ,
+            hideToast() {
                 this.toast = false
-            },
+            }
+            ,
             openPaySheet() {
                 this.parkInfo.endTime = Date.now()
                 this.paySheet = true
                 this.save()
 
-            },
+            }
+            ,
             closePaySheet() {
                 this.paySheet = false
-            }, refresh() {
+            }
+            ,
+            refresh() {
                 this.refreshing = true
                 setTimeout(() => {
                     this.me = -1;
                     this.draw();
                     this.refreshing = false
                 }, 1000)
-            },
+            }
+            ,
             draw() {
+                console.log('draw')
                 this.context.clearRect(0, 0, canvas.width, canvas.height);
                 let cellWidth = this.w / (this.map[0].length + 1);
                 let cellHeight = this.w / (this.map.length + 1);
@@ -324,6 +347,20 @@
                     }
                 }
             },
+            drawPath(path) {
+                let cellWidth = this.w / (this.map[0].length + 1);
+                let cellHeight = this.w / (this.map.length + 1);
+                if (this.path !== undefined || this.path !== null)
+                    if (this.path.length > 1) {
+                        //this.canvas.strokeStyle = "red";
+                        this.context.lineWidth = 5;
+                        this.context.moveTo((this.path[0][0] + 0.5) * cellWidth, (this.path[0][1] + 0.5) * cellHeight);//设置起点
+                        for (let i = 1; i < this.path.length; i++) {
+                            this.context.lineTo((this.path[i][0] + 0.5) * cellWidth, (this.path[i][1] + 0.5) * cellHeight);
+                        }
+                        this.context.stroke();
+                    }
+            },
             resize() {
                 console.log(this.canvasBox.clientWidth)
                 console.log(this.canvasBox.clientHeight)
@@ -343,6 +380,7 @@
 
     .canvas-box {
         flex-grow: 2;
+        max-height: 500px;
     }
 
     .button-box {

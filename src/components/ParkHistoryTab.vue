@@ -3,11 +3,11 @@
         <mu-paper class="park-item" v-for="item in parkList" :key="item.startTime">
             <mu-timeline>
                 <mu-timeline-item>
-                    <span slot="time">{{new Date(item.startTime).toLocaleTimeString()}}</span>
+                    <span slot="time">{{new Date(item.startTime).toLocaleDateString()+new Date(item.startTime).toLocaleTimeString()}}</span>
                     <span slot="des">停车</span>
                 </mu-timeline-item>
                 <mu-timeline-item>
-                    <span slot="time">{{new Date(item.endTime).toLocaleTimeString()}}</span>
+                    <span slot="time">{{new Date(item.endTime).toLocaleDateString()+new Date(item.endTime).toLocaleTimeString()}}</span>
                     <span slot="des">开走</span>
                 </mu-timeline-item>
 
